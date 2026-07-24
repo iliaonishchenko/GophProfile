@@ -1,0 +1,110 @@
+version: "3"
+
+vars:
+  BINARY_DIR: bin
+  SERVER_BINARY: bin/gophprofile-server
+  WORKER_BINARY: bin/gophprofile-worker
+  OPENAPI_SPEC: api/openapi.yaml
+  OPENAPI_OUTPUT_DIR: internal/api
+  OPENAPI_OUTPUT: internal/api/server.gen.go
+  OPENAPI_PACKAGE: api
+  OAPI_CODEGEN_VERSION: v2.5.0
+  MOCK_SOURCE: internal/domain/avatar.go
+  MOCK_OUTPUT_DIR: internal/mocks
+  MOCK_OUTPUT: internal/mocks/domain_mock.go
+
+tasks:
+  test:
+    desc: Run all Go tests
+    deps:
+      - generate-mocks
+    cmds:
+      - go test ./...
+
+  cover:
+    desc: Run unit tests for core packages and print the coverage summary
+    deps:
+      - generate-mocks
+    cmds:
+      - >-
+        go test -coverprofile=coverage.out
+        ./internal/config
+        ./internal/service
+        ./internal/worker
+        ./internal/httpserver
+        ./internal/repository
+      - go tool cover -func=coverage.out
+
+  build:
+    desc: Build the server and worker binaries
+    deps:
+      - generate-server
+    sources:
+      - "**/*.go"
+      - go.mod
+      - go.sum
+    generates:
+      - "{{.SERVER_BINARY}}"
+      - "{{.WORKER_BINARY}}"
+    cmds:
+      - mkdir -p "{{.BINARY_DIR}}"
+      - go build -o "{{.SERVER_BINARY}}" ./cmd/server
+      - go build -o "{{.WORKER_BINARY}}" ./cmd/worker
+
+  run:
+    desc: Run the server locally
+    deps:
+      - generate-server
+    cmds:
+      - go run ./cmd/server
+
+  run-worker:
+    desc: Run the image processing worker locally
+    deps:
+      - generate-server
+    cmds:
+      - go run ./cmd/worker
+
+  vet:
+    desc: Run Go static analysis
+    cmds:
+      - go vet ./...
+
+  lint:
+    desc: Run golangci-lint
+    deps:
+      - generate-mocks
+    cmds:
+      - go tool golangci-lint run --timeout=5m ./...
+
+  generate-mocks:
+    desc: Generate GoMock implementations for domain interfaces
+    sources:
+      - "{{.MOCK_SOURCE}}"
+    generates:
+      - "{{.MOCK_OUTPUT}}"
+    cmds:
+      - mkdir -p "{{.MOCK_OUTPUT_DIR}}"
+      - >-
+        go tool mockgen
+        -source {{.MOCK_SOURCE}}
+        -destination {{.MOCK_OUTPUT}}
+        -package mocks
+        -write_command_comment=false
+        -write_package_comment=false
+        -write_source_comment=false
+
+  generate-server:
+    desc: Generate Go server types and Chi handlers from the OpenAPI specification
+    sources:
+      - "{{.OPENAPI_SPEC}}"
+    generates:
+      - "{{.OPENAPI_OUTPUT}}"
+    cmds:
+      - mkdir -p "{{.OPENAPI_OUTPUT_DIR}}"
+      - >-
+        go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@{{.OAPI_CODEGEN_VERSION}}
+        -generate types,chi-server,spec
+        -package {{.OPENAPI_PACKAGE}}
+        -o {{.OPENAPI_OUTPUT}}
+        {{.OPENAPI_SPEC}}

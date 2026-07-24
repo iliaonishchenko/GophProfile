@@ -1,0 +1,11 @@
+.git
+.idea
+.task
+bin
+build
+dist
+coverage.out
+.env
+docker-data
+postgres-data
+pgdata

@@ -1,0 +1,467 @@
+openapi: 3.0.3
+
+info:
+  title: API аватарок GophProfile
+  version: 1.0.0
+  description: |
+    API для загрузки, получения, просмотра метаданных и удаления аватарок пользователей.
+
+    Загруженные изображения обрабатываются асинхронно через брокер сообщений.
+    Сервис создаёт миниатюры размером 100x100 и 300x300 пикселей. В базе данных
+    используется мягкое удаление, а файлы удаляются из объектного хранилища
+    асинхронно.
+
+servers:
+  - url: http://localhost:8080
+    description: Локальный сервер для разработки
+
+tags:
+  - name: Avatars
+    description: Управление аватарками
+  - name: System
+    description: Состояние сервиса
+
+paths:
+  /api/v1/avatars:
+    get:
+      tags:
+        - Avatars
+      summary: Получить список аватарок пользователя
+      operationId: listAvatars
+      parameters:
+        - $ref: "#/components/parameters/UserIdHeader"
+      responses:
+        "200":
+          description: Галерея аватарок пользователя
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Avatar"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      tags:
+        - Avatars
+      summary: Загрузить аватарку
+      description: |
+        Принимает изображение JPEG, PNG или WebP размером до 10 МБ.
+      operationId: uploadAvatar
+      parameters:
+        - $ref: "#/components/parameters/UserIdHeader"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  maxLength: 10485760
+                  description: Изображение JPEG, PNG или WebP. Максимальный размер — 10 МБ.
+            encoding:
+              file:
+                contentType: image/jpeg, image/png, image/webp
+      responses:
+        "201":
+          description: Аватарка принята для асинхронной обработки
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Avatar"
+              example:
+                id: 550e8400-e29b-41d4-a716-446655440000
+                user_id: user-123
+                url: https://cdn.example.com/avatars/550e8400-e29b-41d4-a716-446655440000
+                status: processing
+                created_at: "2024-01-01T00:00:00Z"
+        "400":
+          description: Некорректный запрос или неподдерживаемый формат изображения
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorWithDetails"
+              example:
+                error: Недопустимый формат файла
+                details: "Поддерживаемые форматы: jpeg, png, webp"
+        "413":
+          description: Размер загруженного файла превышает 10 МБ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileTooLargeError"
+              example:
+                error: Файл слишком большой
+                max_size: 10485760
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/v1/avatars/{avatar_id}:
+    parameters:
+      - $ref: "#/components/parameters/AvatarId"
+    get:
+      tags:
+        - Avatars
+      summary: Получить изображение аватарки
+      description: Возвращает исходное изображение или одну из созданных миниатюр.
+      operationId: getAvatar
+      parameters:
+        - name: size
+          in: query
+          required: false
+          description: Запрашиваемый размер изображения. По умолчанию возвращается оригинал.
+          schema:
+            type: string
+            enum:
+              - 100x100
+              - 300x300
+              - original
+            default: original
+      responses:
+        "200":
+          description: Бинарные данные изображения аватарки
+          headers:
+            Cache-Control:
+              description: Политика кеширования для браузеров и промежуточных серверов
+              schema:
+                type: string
+                example: max-age=86400
+            ETag:
+              description: Идентификатор версии ресурса для проверки актуальности кеша
+              schema:
+                type: string
+                example: '"686897696a7c876b7e"'
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/webp:
+              schema:
+                type: string
+                format: binary
+        "404":
+          $ref: "#/components/responses/AvatarNotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      tags:
+        - Avatars
+      summary: Удалить аватарку
+      description: |
+        Выполняет мягкое удаление записи об аватарке в базе данных и отправляет
+        в очередь задачу на асинхронное удаление исходного изображения и
+        миниатюр из объектного хранилища.
+      operationId: deleteAvatar
+      parameters:
+        - $ref: "#/components/parameters/UserIdHeader"
+      responses:
+        "204":
+          description: Аватарка принята на удаление
+        "403":
+          description: Аватарка принадлежит другому пользователю
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorWithDetails"
+              example:
+                error: Доступ запрещён
+                details: Можно удалять только собственные аватарки
+        "404":
+          $ref: "#/components/responses/AvatarNotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/v1/avatars/{avatar_id}/metadata:
+    parameters:
+      - $ref: "#/components/parameters/AvatarId"
+    get:
+      tags:
+        - Avatars
+      summary: Получить метаданные аватарки
+      operationId: getAvatarMetadata
+      responses:
+        "200":
+          description: Метаданные аватарки
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvatarMetadata"
+              example:
+                id: 550e8400-e29b-41d4-a716-446655440000
+                user_id: user-123
+                file_name: avatar.jpg
+                mime_type: image/jpeg
+                size: 1024000
+                dimensions:
+                  width: 1920
+                  height: 1080
+                thumbnails:
+                  - size: 100x100
+                    url: https://cdn.example.com/avatars/id/100x100.jpg
+                  - size: 300x300
+                    url: https://cdn.example.com/avatars/id/300x300.jpg
+                created_at: "2024-01-01T00:00:00Z"
+                updated_at: "2024-01-01T00:00:00Z"
+        "404":
+          $ref: "#/components/responses/AvatarNotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /health:
+    get:
+      tags:
+        - System
+      summary: Проверить состояние сервиса
+      description: Проверяет доступность приложения, PostgreSQL, S3-совместимого хранилища и брокера сообщений.
+      operationId: getHealth
+      responses:
+        "200":
+          description: Сервис и все необходимые зависимости работают
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: healthy
+                components:
+                  database:
+                    status: healthy
+                  s3:
+                    status: healthy
+                  broker:
+                    status: healthy
+        "503":
+          description: Хотя бы одна необходимая зависимость недоступна
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: unhealthy
+                components:
+                  database:
+                    status: healthy
+                  s3:
+                    status: unhealthy
+                    error: Истекло время ожидания подключения
+                  broker:
+                    status: healthy
+
+components:
+  parameters:
+    UserIdHeader:
+      name: X-User-ID
+      in: header
+      required: true
+      description: Идентификатор пользователя, выполняющего операцию.
+      schema:
+        type: string
+        minLength: 1
+      example: user-123
+    AvatarId:
+      name: avatar_id
+      in: path
+      required: true
+      description: Идентификатор аватарки.
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    AvatarNotFound:
+      description: Аватарка не найдена
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: Аватарка не найдена
+    InternalServerError:
+      description: Внутренняя ошибка сервера
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error: Внутренняя ошибка сервера
+
+  schemas:
+    Avatar:
+      type: object
+      required:
+        - id
+        - user_id
+        - url
+        - status
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+        url:
+          type: string
+          format: uri
+        status:
+          type: string
+          description: Текущее состояние асинхронной обработки.
+          enum:
+            - processing
+            - ready
+            - failed
+        created_at:
+          type: string
+          format: date-time
+
+    AvatarMetadata:
+      type: object
+      required:
+        - id
+        - user_id
+        - file_name
+        - mime_type
+        - size
+        - dimensions
+        - thumbnails
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+        file_name:
+          type: string
+        mime_type:
+          type: string
+          enum:
+            - image/jpeg
+            - image/png
+            - image/webp
+        size:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 10485760
+          description: Размер исходного файла в байтах.
+        dimensions:
+          $ref: "#/components/schemas/ImageDimensions"
+        thumbnails:
+          type: array
+          items:
+            $ref: "#/components/schemas/Thumbnail"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ImageDimensions:
+      type: object
+      required:
+        - width
+        - height
+      properties:
+        width:
+          type: integer
+          minimum: 1
+        height:
+          type: integer
+          minimum: 1
+
+    Thumbnail:
+      type: object
+      required:
+        - size
+        - url
+      properties:
+        size:
+          type: string
+          enum:
+            - 100x100
+            - 300x300
+        url:
+          type: string
+          format: uri
+
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+
+    ErrorWithDetails:
+      allOf:
+        - $ref: "#/components/schemas/Error"
+        - type: object
+          required:
+            - details
+          properties:
+            details:
+              type: string
+
+    FileTooLargeError:
+      allOf:
+        - $ref: "#/components/schemas/Error"
+        - type: object
+          required:
+            - max_size
+          properties:
+            max_size:
+              type: integer
+              format: int64
+              example: 10485760
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - components
+      properties:
+        status:
+          type: string
+          enum:
+            - healthy
+            - unhealthy
+        components:
+          type: object
+          required:
+            - database
+            - s3
+            - broker
+          properties:
+            database:
+              $ref: "#/components/schemas/ComponentHealth"
+            s3:
+              $ref: "#/components/schemas/ComponentHealth"
+            broker:
+              $ref: "#/components/schemas/ComponentHealth"
+
+    ComponentHealth:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - healthy
+            - unhealthy
+        error:
+          type: string
+          description: Описание ошибки, если компонент недоступен.

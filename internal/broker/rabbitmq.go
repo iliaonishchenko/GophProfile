@@ -10,6 +10,8 @@ import (
 
 	"github.com/iliaonishchenko/GophProfile/internal/domain"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 const (
@@ -95,7 +97,10 @@ func (r *RabbitMQ) publish(ctx context.Context, routingKey, messageID string, ev
 	if err != nil {
 		return fmt.Errorf("не удалось сериализовать событие брокера: %w", err)
 	}
+	headers := amqp.Table{}
+	otel.GetTextMapPropagator().Inject(ctx, tableCarrier(headers))
 	return r.publishMessage(ctx, r.exchange, routingKey, amqp.Publishing{
+		Headers:      headers,
 		ContentType:  "application/json",
 		DeliveryMode: amqp.Persistent,
 		MessageId:    messageID,
@@ -215,8 +220,10 @@ func (r *RabbitMQ) Consume(ctx context.Context, handler func(context.Context, st
 			if !ok {
 				return errors.New("канал доставки сообщений RabbitMQ закрыт")
 			}
-			if err := handler(ctx, delivery.RoutingKey, delivery.Body, delivery.MessageId); err != nil {
-				slog.Error(
+			messageCtx := otel.GetTextMapPropagator().Extract(ctx, tableCarrier(delivery.Headers))
+			if err := handler(messageCtx, delivery.RoutingKey, delivery.Body, delivery.MessageId); err != nil {
+				slog.ErrorContext(
+					messageCtx,
 					"обработка сообщения завершилась ошибкой",
 					"message_id", delivery.MessageId,
 					"routing_key", delivery.RoutingKey,
@@ -247,6 +254,29 @@ func (r *RabbitMQ) Consume(ctx context.Context, handler func(context.Context, st
 		}
 	}
 }
+
+type tableCarrier amqp.Table
+
+func (c tableCarrier) Get(key string) string {
+	if value, ok := c[key].(string); ok {
+		return value
+	}
+	return ""
+}
+
+func (c tableCarrier) Set(key, value string) {
+	c[key] = value
+}
+
+func (c tableCarrier) Keys() []string {
+	keys := make([]string, 0, len(c))
+	for key := range c {
+		keys = append(keys, key)
+	}
+	return keys
+}
+
+var _ propagation.TextMapCarrier = tableCarrier{}
 
 func (r *RabbitMQ) Health(context.Context) error {
 	if r.connection.IsClosed() || r.channel.IsClosed() {

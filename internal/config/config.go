@@ -9,6 +9,7 @@ import (
 
 type Config struct {
 	HTTPAddress    string
+	MetricsAddress string
 	DatabaseDSN    string
 	AMQPURL        string
 	AMQPExchange   string
@@ -19,6 +20,8 @@ type Config struct {
 	S3Bucket       string
 	S3UseSSL       bool
 	PublicBaseURL  string
+	OTLPEndpoint   string
+	ServiceName    string
 	ShutdownPeriod time.Duration
 }
 
@@ -35,6 +38,7 @@ func Load() (Config, error) {
 
 	return Config{
 		HTTPAddress:    value("HTTP_ADDRESS", ":8080"),
+		MetricsAddress: value("METRICS_ADDRESS", ":9091"),
 		DatabaseDSN:    value("DATABASE_DSN", "postgres://gophprofile:gophprofile@localhost:5432/gophprofile?sslmode=disable"),
 		AMQPURL:        value("AMQP_URL", "amqp://gophprofile:gophprofile@localhost:5672/"),
 		AMQPExchange:   value("AMQP_EXCHANGE", "avatars.exchange"),
@@ -45,6 +49,8 @@ func Load() (Config, error) {
 		S3Bucket:       value("S3_BUCKET", "avatars"),
 		S3UseSSL:       useSSL,
 		PublicBaseURL:  os.Getenv("PUBLIC_BASE_URL"),
+		OTLPEndpoint:   value("OTEL_EXPORTER_OTLP_ENDPOINT", "localhost:4317"),
+		ServiceName:    value("OTEL_SERVICE_NAME", "gophprofile-server"),
 		ShutdownPeriod: shutdownPeriod,
 	}, nil
 }

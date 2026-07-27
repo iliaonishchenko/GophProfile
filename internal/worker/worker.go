@@ -10,11 +10,14 @@ import (
 	"image/jpeg"
 	_ "image/png"
 	"io"
+	"log/slog"
 	"time"
 
 	"github.com/iliaonishchenko/GophProfile/internal/broker"
 	"github.com/iliaonishchenko/GophProfile/internal/domain"
+	"github.com/iliaonishchenko/GophProfile/internal/observability"
 	"github.com/iliaonishchenko/GophProfile/internal/retry"
+	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/image/draw"
 	_ "golang.org/x/image/webp"
 )
@@ -24,13 +27,39 @@ type Worker struct {
 	storage    domain.AvatarStorage
 	attempts   int
 	baseDelay  time.Duration
+	metrics    *observability.Metrics
 }
 
-func New(repository domain.AvatarRepository, storage domain.AvatarStorage) *Worker {
-	return &Worker{repository: repository, storage: storage, attempts: 3, baseDelay: 250 * time.Millisecond}
+func New(
+	repository domain.AvatarRepository,
+	storage domain.AvatarStorage,
+	metrics *observability.Metrics,
+) *Worker {
+	return &Worker{
+		repository: repository,
+		storage:    storage,
+		attempts:   3,
+		baseDelay:  250 * time.Millisecond,
+		metrics:    metrics,
+	}
 }
 
-func (w *Worker) Handle(ctx context.Context, routingKey string, body []byte, messageID string) error {
+func (w *Worker) Handle(ctx context.Context, routingKey string, body []byte, messageID string) (err error) {
+	started := time.Now()
+	ctx, span := observability.Start(ctx, "rabbitmq.process "+routingKey,
+		attribute.String("messaging.message.id", messageID),
+		attribute.String("messaging.destination.name", routingKey),
+	)
+	defer func() {
+		w.metrics.ObserveWorker(routingKey, started, err)
+		slog.InfoContext(ctx, "сообщение RabbitMQ обработано",
+			"message_id", messageID,
+			"routing_key", routingKey,
+			"success", err == nil,
+			"duration_ms", time.Since(started).Milliseconds(),
+		)
+		observability.End(span, err)
+	}()
 	switch routingKey {
 	case broker.RoutingKeyUploaded:
 		var event domain.AvatarUploadEvent
@@ -40,13 +69,15 @@ func (w *Worker) Handle(ctx context.Context, routingKey string, body []byte, mes
 		if event.MessageID == "" {
 			event.MessageID = messageID
 		}
-		return w.handleUpload(ctx, event)
+		err = w.handleUpload(ctx, event)
+		return err
 	case broker.RoutingKeyDeleted:
 		var event domain.AvatarDeleteEvent
 		if err := json.Unmarshal(body, &event); err != nil {
 			return fmt.Errorf("не удалось декодировать событие удаления: %w", err)
 		}
-		return retry.Do(ctx, w.attempts, w.baseDelay, func() error { return w.handleDelete(ctx, event) })
+		err = retry.Do(ctx, w.attempts, w.baseDelay, func() error { return w.handleDelete(ctx, event) })
+		return err
 	default:
 		return fmt.Errorf("неподдерживаемый ключ маршрутизации %q", routingKey)
 	}

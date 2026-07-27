@@ -16,6 +16,7 @@ import (
 	"github.com/iliaonishchenko/GophProfile/internal/broker"
 	"github.com/iliaonishchenko/GophProfile/internal/domain"
 	"github.com/iliaonishchenko/GophProfile/internal/mocks"
+	"github.com/iliaonishchenko/GophProfile/internal/observability"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 )
@@ -24,7 +25,7 @@ func TestWorkerProcessesUploadAndIsIdempotent(t *testing.T) {
 	controller := gomock.NewController(t)
 	repository := mocks.NewMockAvatarRepository(controller)
 	storage := mocks.NewMockAvatarStorage(controller)
-	processor := New(repository, storage)
+	processor := New(repository, storage, observability.NewMetrics())
 	processor.baseDelay = time.Millisecond
 	avatar := domain.Avatar{
 		ID:               "id-1",
@@ -78,7 +79,7 @@ func TestWorkerSkipsUploadClaimedByAnotherWorker(t *testing.T) {
 	controller := gomock.NewController(t)
 	repository := mocks.NewMockAvatarRepository(controller)
 	storage := mocks.NewMockAvatarStorage(controller)
-	processor := New(repository, storage)
+	processor := New(repository, storage, observability.NewMetrics())
 	event, err := json.Marshal(domain.AvatarUploadEvent{
 		MessageID: "message-1",
 		AvatarID:  "id-1",
@@ -98,7 +99,7 @@ func TestWorkerReturnsProcessingAndStatusErrors(t *testing.T) {
 	controller := gomock.NewController(t)
 	repository := mocks.NewMockAvatarRepository(controller)
 	storage := mocks.NewMockAvatarStorage(controller)
-	processor := New(repository, storage)
+	processor := New(repository, storage, observability.NewMetrics())
 	processor.baseDelay = time.Millisecond
 	event, err := json.Marshal(domain.AvatarUploadEvent{
 		MessageID: "message-1",
@@ -125,7 +126,7 @@ func TestWorkerDeleteAndInvalidMessages(t *testing.T) {
 	controller := gomock.NewController(t)
 	repository := mocks.NewMockAvatarRepository(controller)
 	storage := mocks.NewMockAvatarStorage(controller)
-	processor := New(repository, storage)
+	processor := New(repository, storage, observability.NewMetrics())
 	processor.baseDelay = time.Millisecond
 	deleteEvent, err := json.Marshal(domain.AvatarDeleteEvent{
 		AvatarID: "id",

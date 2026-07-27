@@ -15,6 +15,7 @@ import (
 	"github.com/iliaonishchenko/GophProfile/internal/api"
 	"github.com/iliaonishchenko/GophProfile/internal/domain"
 	"github.com/iliaonishchenko/GophProfile/internal/mocks"
+	"github.com/iliaonishchenko/GophProfile/internal/observability"
 	"github.com/iliaonishchenko/GophProfile/internal/service"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -26,7 +27,7 @@ func TestHandlerUploadListAndGet(t *testing.T) {
 	storage := mocks.NewMockAvatarStorage(controller)
 	publisher := mocks.NewMockMessagePublisher(controller)
 	avatarService := service.NewAvatarService(repository, storage, publisher, "")
-	handler := NewHandler(avatarService, nil)
+	handler := NewHandler(avatarService, nil, observability.NewMetrics())
 	imageData := testImage(t)
 	var saved domain.Avatar
 
@@ -92,6 +93,7 @@ func TestHandlerUploadErrorsAndForbiddenDelete(t *testing.T) {
 			"",
 		),
 		nil,
+		observability.NewMetrics(),
 	)
 
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/avatars", bytes.NewBufferString("broken"))
@@ -133,6 +135,7 @@ func TestHandlerInvalidAvatarIDFromRepository(t *testing.T) {
 			"",
 		),
 		nil,
+		observability.NewMetrics(),
 	)
 	avatar := domain.Avatar{ID: "invalid-uuid", UserID: "user"}
 

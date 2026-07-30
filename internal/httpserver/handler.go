@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/iliaonishchenko/GophProfile/internal/api"
 	"github.com/iliaonishchenko/GophProfile/internal/domain"
+	"github.com/iliaonishchenko/GophProfile/internal/observability"
 	"github.com/iliaonishchenko/GophProfile/internal/service"
 )
 
@@ -23,10 +24,15 @@ const multipartOverhead int64 = 1 << 20
 type Handler struct {
 	avatars *service.AvatarService
 	health  *service.HealthService
+	metrics *observability.Metrics
 }
 
-func NewHandler(avatars *service.AvatarService, health *service.HealthService) *Handler {
-	return &Handler{avatars: avatars, health: health}
+func NewHandler(
+	avatars *service.AvatarService,
+	health *service.HealthService,
+	metrics *observability.Metrics,
+) *Handler {
+	return &Handler{avatars: avatars, health: health, metrics: metrics}
 }
 
 func (h *Handler) ListAvatars(w http.ResponseWriter, r *http.Request, params api.ListAvatarsParams) {
@@ -94,6 +100,7 @@ func (h *Handler) UploadAvatar(w http.ResponseWriter, r *http.Request, params ap
 	}
 
 	avatar, err := h.avatars.Upload(r.Context(), userID, header.Filename, data)
+	h.metrics.RecordUpload(err)
 	if err != nil {
 		handleDomainError(w, err)
 		return
@@ -112,7 +119,9 @@ func (h *Handler) DeleteAvatar(w http.ResponseWriter, r *http.Request, avatarID 
 		writeError(w, http.StatusBadRequest, "Некорректный X-User-ID", "Заголовок не должен быть пустым")
 		return
 	}
-	if err := h.avatars.Delete(r.Context(), avatarID.String(), params.XUserID); err != nil {
+	err := h.avatars.Delete(r.Context(), avatarID.String(), params.XUserID)
+	h.metrics.RecordDelete(err)
+	if err != nil {
 		handleDomainError(w, err)
 		return
 	}

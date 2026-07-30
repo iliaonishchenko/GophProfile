@@ -1,0 +1,43 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "HTTP requests / sec",
+      "targets": [{"expr": "sum by (status) (rate(gophprofile_http_requests_total[5m]))", "legendFormat": "{{status}}"}],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+    },
+    {
+      "type": "timeseries",
+      "title": "HTTP p95 latency",
+      "targets": [{"expr": "histogram_quantile(0.95, sum by (le) (rate(gophprofile_http_request_duration_seconds_bucket[5m])))", "legendFormat": "p95"}],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+    },
+    {
+      "type": "stat",
+      "title": "Avatar uploads",
+      "targets": [{"expr": "sum by (result) (gophprofile_avatar_uploads_total)", "legendFormat": "{{result}}"}],
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8}
+    },
+    {
+      "type": "stat",
+      "title": "Avatar deletes",
+      "targets": [{"expr": "sum by (result) (gophprofile_avatar_deletes_total)", "legendFormat": "{{result}}"}],
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 8}
+    },
+    {
+      "type": "timeseries",
+      "title": "Worker messages / sec",
+      "targets": [{"expr": "sum by (routing_key, result) (rate(gophprofile_worker_messages_total[5m]))", "legendFormat": "{{routing_key}} {{result}}"}],
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8}
+    }
+  ],
+  "schemaVersion": 41,
+  "tags": ["gophprofile", "observability"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "title": "GophProfile Overview",
+  "uid": "gophprofile-overview",
+  "version": 1
+}

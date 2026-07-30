@@ -14,6 +14,9 @@ services:
       S3_BUCKET: "avatars"
       S3_USE_SSL: "false"
       PUBLIC_BASE_URL: "http://localhost:8080"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "jaeger:4317"
+      OTEL_SERVICE_NAME: "gophprofile-server"
+      LOG_LEVEL: "info"
     ports:
       - "8080:8080"
     depends_on:
@@ -23,12 +26,23 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      jaeger:
+        condition: service_started
+    logging: &app-logging
+      driver: fluentd
+      options:
+        fluentd-address: "localhost:24224"
+        fluentd-async: "true"
+        tag: "gophprofile.server"
     restart: unless-stopped
 
   worker:
     build: .
     command: ["/app/worker"]
-    environment: *app-environment
+    environment:
+      <<: *app-environment
+      OTEL_SERVICE_NAME: "gophprofile-worker"
+      METRICS_ADDRESS: ":9091"
     depends_on:
       postgres:
         condition: service_healthy
@@ -36,6 +50,14 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      jaeger:
+        condition: service_started
+    logging:
+      <<: *app-logging
+      options:
+        fluentd-address: "localhost:24224"
+        fluentd-async: "true"
+        tag: "gophprofile.worker"
     restart: unless-stopped
 
   postgres:
@@ -87,7 +109,85 @@ services:
       timeout: 5s
       retries: 10
 
+  jaeger:
+    image: jaegertracing/all-in-one:1.68.0
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus"]
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      server:
+        condition: service_started
+
+  grafana:
+    image: grafana/grafana:12.1.0
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_started
+
+  opensearch:
+    image: opensearchproject/opensearch:3.2.0
+    environment:
+      discovery.type: single-node
+      plugins.security.disabled: "true"
+      OPENSEARCH_INITIAL_ADMIN_PASSWORD: "V7!mQ2#zL9@pR4&x"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:3.2.0
+    environment:
+      OPENSEARCH_HOSTS: '["http://opensearch:9200"]'
+      DISABLE_SECURITY_DASHBOARDS_PLUGIN: "true"
+    ports:
+      - "5601:5601"
+    depends_on:
+      opensearch:
+        condition: service_healthy
+
+  fluent-bit:
+    image: fluent/fluent-bit:4.0.5
+    ports:
+      - "24224:24224"
+    volumes:
+      - ./deploy/fluent-bit/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+      - ./deploy/fluent-bit/parsers_custom.conf:/fluent-bit/etc/parsers_custom.conf:ro
+    depends_on:
+      opensearch:
+        condition: service_healthy
+
 volumes:
   postgres-data:
   rabbitmq-data:
   minio-data:
+  prometheus-data:
+  grafana-data:
+  opensearch-data:

@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "gophprofile.fullname" . }}
+  labels:
+    {{- include "gophprofile.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+    gophprofile.io/metrics: "true"
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "gophprofile.selectorLabels" (dict "root" . "component" "server") | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.service.httpPort }}
+      targetPort: http
+      protocol: TCP
+    - name: metrics
+      port: {{ .Values.service.metricsPort }}
+      targetPort: http
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "gophprofile.fullname" . }}-worker
+  labels:
+    {{- include "gophprofile.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+    gophprofile.io/metrics: "true"
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "gophprofile.selectorLabels" (dict "root" . "component" "worker") | nindent 4 }}
+  ports:
+    - name: metrics
+      port: {{ .Values.service.workerMetricsPort }}
+      targetPort: metrics
+      protocol: TCP

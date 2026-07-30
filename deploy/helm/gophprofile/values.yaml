@@ -1,0 +1,148 @@
+image:
+  repository: ghcr.io/iliaonishchenko/gophprofile
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+config:
+  httpAddress: ":8080"
+  metricsAddress: ":9091"
+  amqpExchange: avatars.exchange
+  amqpQueue: avatars.worker
+  s3Endpoint: minio:9000
+  s3Bucket: avatars
+  s3UseSSL: false
+  publicBaseUrl: ""
+  shutdownPeriod: 20s
+  otelEndpoint: jaeger-collector:4317
+
+secret:
+  create: false
+  existingSecret: gophprofile-secrets
+  values:
+    databaseDsn: ""
+    amqpUrl: ""
+    s3AccessKey: ""
+    s3SecretKey: ""
+
+serviceAccount:
+  create: true
+  name: ""
+
+rbac:
+  create: true
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+terminationGracePeriodSeconds: 30
+
+server:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  livenessProbe:
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
+  readinessProbe:
+    initialDelaySeconds: 2
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    cpuUtilization: 70
+    memoryUtilization: 80
+
+worker:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  livenessProbe:
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
+  readinessProbe:
+    initialDelaySeconds: 2
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 3
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 5
+    cpuUtilization: 70
+    memoryUtilization: 80
+
+service:
+  type: ClusterIP
+  httpPort: 80
+  metricsPort: 9090
+  workerMetricsPort: 9091
+
+ingress:
+  enabled: false
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: 11m
+  host: avatars.example.com
+  path: /
+  pathType: Prefix
+  tls:
+    enabled: false
+    secretName: ""
+
+monitoring:
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s
+    additionalLabels: {}
+
+networkPolicy:
+  enabled: false
+  ingressNamespace: ingress-nginx
+  monitoringNamespace: monitoring
+  extraEgress: []
+
+migration:
+  enabled: true
+  backoffLimit: 6
+  activeDeadlineSeconds: 300
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi

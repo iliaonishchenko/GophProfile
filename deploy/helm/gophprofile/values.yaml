@@ -20,13 +20,7 @@ config:
   otelEndpoint: jaeger-collector:4317
 
 secret:
-  create: false
   existingSecret: gophprofile-secrets
-  values:
-    databaseDsn: ""
-    amqpUrl: ""
-    s3AccessKey: ""
-    s3SecretKey: ""
 
 serviceAccount:
   create: true

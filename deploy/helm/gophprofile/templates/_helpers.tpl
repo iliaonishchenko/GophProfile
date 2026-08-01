@@ -43,11 +43,7 @@ app.kubernetes.io/component: {{ .component }}
 {{- end }}
 
 {{- define "gophprofile.secretName" -}}
-{{- if .Values.secret.create }}
-{{- printf "%s-secrets" (include "gophprofile.fullname" .) }}
-{{- else }}
-{{- required "secret.existingSecret is required when secret.create=false" .Values.secret.existingSecret }}
-{{- end }}
+{{- required "secret.existingSecret is required" .Values.secret.existingSecret }}
 {{- end }}
 
 {{- define "gophprofile.image" -}}

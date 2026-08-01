@@ -34,14 +34,10 @@ spec:
             - /app/migrate
           env:
             - name: DATABASE_DSN
-              {{- if .Values.secret.create }}
-              value: {{ required "secret.values.databaseDsn is required" .Values.secret.values.databaseDsn | quote }}
-              {{- else }}
               valueFrom:
                 secretKeyRef:
                   name: {{ include "gophprofile.secretName" . }}
                   key: DATABASE_DSN
-              {{- end }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           resources:

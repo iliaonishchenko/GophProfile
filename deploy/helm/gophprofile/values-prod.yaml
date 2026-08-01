@@ -10,7 +10,6 @@ config:
   otelEndpoint: jaeger-collector.monitoring.svc.cluster.local:4317
 
 secret:
-  create: false
   existingSecret: gophprofile-secrets
 
 server:

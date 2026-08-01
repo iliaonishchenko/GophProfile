@@ -8,14 +8,9 @@ config:
   publicBaseUrl: http://gophprofile.local
   otelEndpoint: jaeger:4317
 
+# Create this Secret manually before installing the chart.
 secret:
-  create: true
-  existingSecret: ""
-  values:
-    databaseDsn: postgres://gophprofile:gophprofile@postgres:5432/gophprofile?sslmode=disable
-    amqpUrl: amqp://gophprofile:gophprofile@rabbitmq:5672/
-    s3AccessKey: gophprofile
-    s3SecretKey: gophprofile-secret
+  existingSecret: gophprofile-secrets
 
 server:
   replicaCount: 1

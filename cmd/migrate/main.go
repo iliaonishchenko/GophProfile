@@ -32,7 +32,7 @@ func run() error {
 		return fmt.Errorf("не удалось проверить подключение к PostgreSQL: %w", err)
 	}
 	if err := gophprofile.RunMigrations(db); err != nil {
-		return err
+		return fmt.Errorf("не удалось применить миграции: %w", err)
 	}
 	slog.Info("миграции успешно применены")
 	return nil

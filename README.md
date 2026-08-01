@@ -59,7 +59,7 @@ task run-worker       # запустить worker
 Helm chart расположен в `deploy/helm/gophprofile`. Он создаёт:
 
 - Deployment и HPA для API и worker;
-- Service, Ingress, ConfigMap и Secret либо ссылку на существующий Secret;
+- Service, Ingress, ConfigMap и ссылку на заранее созданный Secret;
 - liveness/readiness probes и ServiceMonitor;
 - ServiceAccount с нулевыми API-правами, restricted SecurityContext и NetworkPolicy;
 - Helm hook Job для миграций PostgreSQL.
@@ -70,20 +70,30 @@ metrics-server, Prometheus Operator и Jaeger. Эти компоненты до�
 
 ### Локальный Kubernetes
 
-Соберите образ и загрузите его в используемый локальный кластер:
+Скопируйте пример values в локальный файл, создайте Secret, затем соберите
+образ и загрузите его в используемый локальный кластер:
 
 ```bash
+cp deploy/helm/gophprofile/values-dev.example.yaml \
+  deploy/helm/gophprofile/values-dev.yaml
+
+kubectl create namespace gophprofile
+kubectl -n gophprofile create secret generic gophprofile-secrets \
+  --from-literal=DATABASE_DSN='<DATABASE_DSN>' \
+  --from-literal=AMQP_URL='<AMQP_URL>' \
+  --from-literal=S3_ACCESS_KEY='<S3_ACCESS_KEY>' \
+  --from-literal=S3_SECRET_KEY='<S3_SECRET_KEY>'
+
 docker build -t gophprofile:latest .
 helm lint deploy/helm/gophprofile -f deploy/helm/gophprofile/values-dev.yaml
 helm upgrade --install gophprofile deploy/helm/gophprofile \
   --namespace gophprofile \
-  --create-namespace \
   -f deploy/helm/gophprofile/values-dev.yaml
 ```
 
-`values-dev.yaml` содержит только учебные credentials и отключает HPA,
-ServiceMonitor и NetworkPolicy, чтобы chart можно было запустить в простом
-локальном кластере.
+`values-dev.example.yaml` не содержит credentials. Локальный `values-dev.yaml`
+игнорируется Git и Helm package. HPA, ServiceMonitor и NetworkPolicy в dev-примере
+отключены для простого локального кластера.
 
 ### Production
 

@@ -4,6 +4,7 @@ vars:
   BINARY_DIR: bin
   SERVER_BINARY: bin/gophprofile-server
   WORKER_BINARY: bin/gophprofile-worker
+  MIGRATE_BINARY: bin/gophprofile-migrate
   OPENAPI_SPEC: api/openapi.yaml
   OPENAPI_OUTPUT_DIR: internal/api
   OPENAPI_OUTPUT: internal/api/server.gen.go
@@ -46,10 +47,12 @@ tasks:
     generates:
       - "{{.SERVER_BINARY}}"
       - "{{.WORKER_BINARY}}"
+      - "{{.MIGRATE_BINARY}}"
     cmds:
       - mkdir -p "{{.BINARY_DIR}}"
       - go build -o "{{.SERVER_BINARY}}" ./cmd/server
       - go build -o "{{.WORKER_BINARY}}" ./cmd/worker
+      - go build -o "{{.MIGRATE_BINARY}}" ./cmd/migrate
 
   run:
     desc: Run the server locally
@@ -64,6 +67,11 @@ tasks:
       - generate-server
     cmds:
       - go run ./cmd/worker
+
+  migrate:
+    desc: Apply PostgreSQL migrations
+    cmds:
+      - go run ./cmd/migrate
 
   vet:
     desc: Run Go static analysis

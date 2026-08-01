@@ -257,6 +257,23 @@ paths:
                   broker:
                     status: healthy
 
+  /live:
+    get:
+      tags:
+        - System
+      summary: Проверить жизнеспособность процесса
+      description: Возвращает успешный ответ, пока HTTP-процесс способен обслуживать запросы.
+      operationId: getLive
+      responses:
+        "200":
+          description: Процесс работает
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LiveResponse"
+              example:
+                status: live
+
 components:
   parameters:
     UserIdHeader:
@@ -296,6 +313,16 @@ components:
             error: Внутренняя ошибка сервера
 
   schemas:
+    LiveResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - live
+
     Avatar:
       type: object
       required:

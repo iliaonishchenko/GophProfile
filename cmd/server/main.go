@@ -13,7 +13,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/iliaonishchenko/GophProfile"
 	"github.com/iliaonishchenko/GophProfile/internal/api"
 	"github.com/iliaonishchenko/GophProfile/internal/broker"
 	"github.com/iliaonishchenko/GophProfile/internal/config"
@@ -56,10 +55,6 @@ func run() error {
 	if err := db.Ping(); err != nil {
 		return fmt.Errorf("не удалось подключиться к PostgreSQL: %w", err)
 	}
-	if err := gophprofile.RunMigrations(db); err != nil {
-		return err
-	}
-
 	objectStorage, err := storage.NewMinIO(cfg.S3Endpoint, cfg.S3AccessKey, cfg.S3SecretKey, cfg.S3Bucket, cfg.S3UseSSL)
 	if err != nil {
 		return err

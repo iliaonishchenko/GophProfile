@@ -1,4 +1,14 @@
 services:
+  migrate:
+    build: .
+    command: ["/app/migrate"]
+    environment:
+      DATABASE_DSN: "postgres://gophprofile:gophprofile@postgres:5432/gophprofile?sslmode=disable"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   server:
     build: .
     command: ["/app/server"]
@@ -22,6 +32,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
       minio:
@@ -46,6 +58,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
       minio:

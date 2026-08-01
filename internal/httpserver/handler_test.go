@@ -159,6 +159,16 @@ func TestHandlerInvalidAvatarIDFromRepository(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, metadataRecorder.Code)
 }
 
+func TestHandlerLive(t *testing.T) {
+	handler := NewHandler(nil, nil, observability.NewMetrics())
+	recorder := httptest.NewRecorder()
+
+	handler.GetLive(recorder, httptest.NewRequest(http.MethodGet, "/live", nil))
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.JSONEq(t, `{"status":"live"}`, recorder.Body.String())
+}
+
 func multipartImage(t *testing.T, field string, data []byte) (*bytes.Buffer, string) {
 	t.Helper()
 	body := &bytes.Buffer{}

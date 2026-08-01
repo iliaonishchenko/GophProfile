@@ -11,7 +11,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/iliaonishchenko/GophProfile"
 	"github.com/iliaonishchenko/GophProfile/internal/broker"
 	"github.com/iliaonishchenko/GophProfile/internal/config"
 	"github.com/iliaonishchenko/GophProfile/internal/observability"
@@ -53,10 +52,6 @@ func run() error {
 	if err := db.Ping(); err != nil {
 		return fmt.Errorf("не удалось проверить подключение к PostgreSQL: %w", err)
 	}
-	if err := gophprofile.RunMigrations(db); err != nil {
-		return err
-	}
-
 	objectStorage, err := storage.NewMinIO(cfg.S3Endpoint, cfg.S3AccessKey, cfg.S3SecretKey, cfg.S3Bucket, cfg.S3UseSSL)
 	if err != nil {
 		return err
@@ -78,9 +73,16 @@ func run() error {
 	)
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	metricsMux := http.NewServeMux()
+	metricsMux.Handle("/metrics", metrics.Handler())
+	metricsMux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"healthy"}`))
+	})
 	metricsServer := &http.Server{
 		Addr:              cfg.MetricsAddress,
-		Handler:           metrics.Handler(),
+		Handler:           metricsMux,
 		ReadHeaderTimeout: cfg.ShutdownPeriod,
 	}
 	slog.Info("сервер метрик worker-а запущен", "address", cfg.MetricsAddress)

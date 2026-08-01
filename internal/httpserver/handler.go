@@ -203,6 +203,10 @@ func (h *Handler) GetHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, status, response)
 }
 
+func (h *Handler) GetLive(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, api.LiveResponse{Status: api.Live})
+}
+
 func (h *Handler) avatarResponse(avatar domain.Avatar) (api.Avatar, error) {
 	id, err := uuid.Parse(avatar.ID)
 	if err != nil {

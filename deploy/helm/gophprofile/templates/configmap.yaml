@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "gophprofile.fullname" . }}
+  labels:
+    {{- include "gophprofile.labels" . | nindent 4 }}
+data:
+  HTTP_ADDRESS: {{ .Values.config.httpAddress | quote }}
+  METRICS_ADDRESS: {{ .Values.config.metricsAddress | quote }}
+  AMQP_EXCHANGE: {{ .Values.config.amqpExchange | quote }}
+  AMQP_QUEUE: {{ .Values.config.amqpQueue | quote }}
+  S3_ENDPOINT: {{ .Values.config.s3Endpoint | quote }}
+  S3_BUCKET: {{ .Values.config.s3Bucket | quote }}
+  S3_USE_SSL: {{ .Values.config.s3UseSSL | quote }}
+  PUBLIC_BASE_URL: {{ .Values.config.publicBaseUrl | quote }}
+  SHUTDOWN_PERIOD: {{ .Values.config.shutdownPeriod | quote }}
+  OTEL_EXPORTER_OTLP_ENDPOINT: {{ .Values.config.otelEndpoint | quote }}
